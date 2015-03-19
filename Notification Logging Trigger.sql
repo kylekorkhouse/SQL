@@ -1,17 +1,26 @@
 ---Notification Logging Trigger
 ---Kyle Korkhouse - 03-19-2014
 
---Drop Audit Table if it already exists
-IF  NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[notification_audit]') AND type in (N'U'))
+--See if table already exists
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[notification_audit]') AND type in (N'U'))
+DROP TABLE [dbo].[notification_audit]
+GO
+
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[notification_audit_msgs]') AND type in (N'U'))
+DROP TABLE [dbo].[notification_audit_msgs]
+GO
 
 --Pre-load audit table if there's anything already in notifications table
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+GO
+BEGIN TRANSACTION;
+GO
 Begin
 	Select 
 		notification_id,
 		source,
 		encoding_charset,
 		priority,
-		CAST(message as nvarchar(2000)) as 'message',
 		ready_to_send,
 		created_date,
 		sender_id,
@@ -28,10 +37,20 @@ Begin
 		Cast(Null as nvarchar(max)) as audit_sql,
 		Cast(Null as nvarchar(max)) as audit_stack_trace,
 		Cast(Null as nvarchar(500)) as audit_app
-	Into notification_audit From notification
+	Into notification_audit 
+	From notification
 End
 GO
 
+BEGIN
+	SELECT notification_id,message
+	into notification_audit_msgs
+	FROM notification
+END
+GO
+
+COMMIT TRANSACTION;
+GO
 
 
 IF  EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[trg_notification_audit]') )
@@ -70,7 +89,6 @@ BEGIN
 				source,
 				encoding_charset,
 				priority,
-				message,
 				ready_to_send,
 				created_date,
 				sender_id,
@@ -92,7 +110,6 @@ BEGIN
 				source,
 				encoding_charset,
 				priority,
-				CAST(message as nvarchar(2000)),
 				ready_to_send,
 				created_date,
 				sender_id,
@@ -108,7 +125,10 @@ BEGIN
 				GETUTCDATE(),
 				@audit_sql,
 				APP_NAME()
-		From inserted
+		From inserted i 
+
+		INSERT INTO notification_audit_msgs
+		SELECT notification_id, message from dbo.notifications where notification_id = (Select notification_id from inserted) 
 	End
 
 	
@@ -125,7 +145,6 @@ BEGIN
 				source,
 				encoding_charset,
 				priority,
-				message,
 				ready_to_send,
 				created_date,
 				sender_id,
@@ -147,7 +166,6 @@ BEGIN
 				source,
 				encoding_charset,
 				priority,
-				CAST(message as nvarchar(2000)),
 				ready_to_send,
 				created_date,
 				sender_id,
@@ -163,7 +181,11 @@ BEGIN
 				GETUTCDATE(),
 				@audit_sql,
 				APP_NAME()
-		From deleted
+		From deleted d
+		
+		INSERT INTO notification_audit_msgs
+		SELECT notification_id, message from notifications where notification_id = (Select notification_id from deleted) 
+	
 	End
 End
 Go
