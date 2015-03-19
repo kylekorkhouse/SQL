@@ -189,3 +189,38 @@ BEGIN
 	End
 End
 Go
+
+
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[notification_audit_view]') AND type = 'V')
+DROP VIEW [dbo].[notification_audit_view]
+GO
+
+CREATE VIEW notification_audit_view
+as
+SELECT na.notification_id
+	,nam.message
+	,na.source
+	,na.encoding_charset
+	,na.priority
+	,na.ready_to_send
+	,na.created_date
+	,na.sender_id
+	,na.subject
+	,na.sender_address
+	,na.message_type
+	,na.p_ID
+	,na.outbound_priority
+	,na.error_message
+	,na.interaction_id
+	,na.bounced_email_addr
+	,na.audit_action
+	,na.audit_create_date
+	,na.audit_sql
+	,na.audit_stack_trace
+	,na.audit_app
+FROM notification_audit na
+INNER JOIN notification_audit_msgs nam
+	on na.notification_id = nam.notification_id
+GO
+
+
